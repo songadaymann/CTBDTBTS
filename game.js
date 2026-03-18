@@ -153,7 +153,7 @@
         resultBonus: document.getElementById("result-bonus"),
         resultSessionReward: document.getElementById("result-session-reward"),
         resultSaveStatus: document.getElementById("result-save-status"),
-        playfunApiKeyMeta: document.getElementById("playfun-api-key-meta"),
+        playfunApiKeyMeta: document.getElementById("ogp-key-meta") || document.getElementById("playfun-api-key-meta"),
         webcamVideo: document.getElementById("webcam"),
         handCanvas: document.getElementById("hand-canvas")
     };
