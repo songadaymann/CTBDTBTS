@@ -1,0 +1,8 @@
+{
+  "enabled": false,
+  "apiKey": "",
+  "gameId": "",
+  "usePointsWidget": true,
+  "theme": "system",
+  "accuracyBonusMultiplier": 0.5
+}

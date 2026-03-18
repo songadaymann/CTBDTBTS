@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CTBD TBTS</title>
+    <meta name="x-ogp-key" content="" id="playfun-api-key-meta">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app-shell">
+        <canvas id="renderCanvas" aria-label="CTBD TBTS game canvas"></canvas>
+
+        <div id="ui-layer">
+            <header id="play-hud" class="hidden" aria-live="polite">
+                <div class="hud-pill">
+                    <span class="hud-value" id="hud-score">0 pts</span>
+                </div>
+                <div class="hud-pill">
+                    <span class="hud-value" id="hud-timer">60s</span>
+                </div>
+            </header>
+
+            <section id="instruction-overlay" aria-live="polite">
+                <p id="instruction-eyebrow">Camera</p>
+                <h1 id="instruction-title">CTBD
+TBTS</h1>
+                <p id="instruction-copy">Allow camera access to begin.</p>
+            </section>
+
+            <div id="aim-reticle" class="hidden" aria-hidden="true">
+                <div class="aim-reticle-ring"></div>
+                <div class="aim-reticle-dot"></div>
+            </div>
+
+            <aside id="camera-preview-shell" class="hidden" aria-hidden="true">
+                <div id="camera-preview-frame">
+                    <video id="webcam" autoplay playsinline muted></video>
+                    <canvas id="hand-canvas" aria-hidden="true"></canvas>
+                </div>
+            </aside>
+
+            <div id="hit-effects-layer" aria-hidden="true"></div>
+
+            <div id="countdown-overlay" class="hidden" aria-live="assertive">
+                <div id="countdown-value">3</div>
+            </div>
+
+            <section id="modal-shell" class="hidden" aria-live="polite">
+                <div id="modal-card">
+                    <p id="modal-eyebrow">Camera</p>
+                    <h1 id="modal-title">CTBD
+TBTS</h1>
+                    <p id="modal-copy">Allow camera access so we can track your throw.</p>
+
+                    <div id="results-grid" class="hidden">
+                        <div class="result-stat">
+                            <span class="result-label">Points</span>
+                            <span class="result-value" id="result-score">0</span>
+                        </div>
+                        <div class="result-stat">
+                            <span class="result-label">Throws</span>
+                            <span class="result-value" id="result-throws">0</span>
+                        </div>
+                        <div class="result-stat">
+                            <span class="result-label">Hits</span>
+                            <span class="result-value" id="result-hits">0</span>
+                        </div>
+                        <div class="result-stat">
+                            <span class="result-label">Misses</span>
+                            <span class="result-value" id="result-misses">0</span>
+                        </div>
+                        <div class="result-stat">
+                            <span class="result-label">Accuracy</span>
+                            <span class="result-value" id="result-accuracy">0%</span>
+                        </div>
+                        <div class="result-stat">
+                            <span class="result-label">Best Hit</span>
+                            <span class="result-value" id="result-best-hit">10 pts</span>
+                        </div>
+                        <div class="result-stat">
+                            <span class="result-label">Accuracy Bonus</span>
+                            <span class="result-value" id="result-bonus">0</span>
+                        </div>
+                        <div class="result-stat">
+                            <span class="result-label">Session Reward</span>
+                            <span class="result-value" id="result-session-reward">0</span>
+                        </div>
+                    </div>
+                    <p id="result-save-status" class="result-save-status hidden"></p>
+
+                    <div id="modal-actions">
+                        <button id="retry-camera-btn" class="ghost-btn hidden" type="button">Try Camera Again</button>
+                        <button id="play-again-btn" class="action-btn hidden" type="button">Play Again</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://sdk.play.fun" defer></script>
+    <script src="dildo-mechanics.js" defer></script>
+    <script src="game.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,571 @@
+:root {
+    color-scheme: dark;
+    --paper: #f4ecd6;
+    --paper-soft: rgba(244, 236, 214, 0.72);
+    --ink: #09100d;
+    --panel: rgba(6, 11, 9, 0.78);
+    --panel-line: rgba(244, 236, 214, 0.14);
+    --accent: #ead29b;
+    --accent-deep: #ae8252;
+    --shadow: rgba(0, 0, 0, 0.34);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    min-height: 100%;
+    background:
+        radial-gradient(circle at top, rgba(66, 91, 74, 0.22), transparent 42%),
+        linear-gradient(180deg, #101612 0%, #040605 100%);
+    color: var(--paper);
+    font-family: "Manrope", sans-serif;
+}
+
+body {
+    overflow: hidden;
+}
+
+#app-shell {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    transform-origin: center center;
+    will-change: transform;
+}
+
+#app-shell::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at center, transparent 68%, rgba(0, 0, 0, 0.1) 100%);
+}
+
+#app-shell::after {
+    content: "";
+    position: absolute;
+    inset: -10%;
+    z-index: 3;
+    pointer-events: none;
+    opacity: 0;
+    background:
+        radial-gradient(circle at center, rgba(255, 245, 232, 0.82) 0%, rgba(255, 245, 232, 0) 22%),
+        radial-gradient(circle at center, rgba(255, 74, 44, 0.76) 0%, rgba(255, 74, 44, 0) 64%);
+    mix-blend-mode: screen;
+}
+
+#app-shell.impact-pulse {
+    animation: shell-impact-pulse 240ms cubic-bezier(0.18, 0.86, 0.32, 1);
+}
+
+#app-shell.impact-flash::after {
+    animation: impact-flash-burst 260ms ease-out;
+}
+
+#renderCanvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: manipulation;
+}
+
+#ui-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+}
+
+#play-hud {
+    position: absolute;
+    top: 24px;
+    left: 24px;
+    right: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.hud-pill {
+    min-width: 132px;
+    padding: 16px 18px;
+    border-radius: 18px;
+    border: 1px solid rgba(244, 236, 214, 0.15);
+    background: linear-gradient(180deg, rgba(8, 13, 11, 0.88), rgba(4, 7, 6, 0.76));
+    box-shadow: 0 20px 40px var(--shadow);
+    backdrop-filter: blur(16px);
+}
+
+.hud-value {
+    display: block;
+    font-size: clamp(1.15rem, 2.4vw, 1.95rem);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+}
+
+#instruction-overlay {
+    position: absolute;
+    bottom: 28px;
+    left: 28px;
+    width: min(460px, calc(100vw - 56px));
+    display: grid;
+    gap: 10px;
+}
+
+#instruction-eyebrow {
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.26em;
+    font-size: 0.72rem;
+    color: rgba(126, 255, 83, 0.94);
+    text-shadow: 0 0 20px rgba(92, 255, 104, 0.24);
+}
+
+#instruction-title {
+    margin: 0;
+    font-family: "Cormorant Garamond", serif;
+    font-size: clamp(3.6rem, 10vw, 6.8rem);
+    line-height: 0.86;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: pre-line;
+    text-transform: uppercase;
+    color: #99ff5d;
+    text-shadow:
+        0 14px 50px rgba(0, 0, 0, 0.36),
+        0 0 24px rgba(106, 255, 120, 0.18);
+}
+
+#instruction-copy {
+    margin: 0;
+    max-width: 22ch;
+    color: rgba(204, 255, 182, 0.98);
+    font-size: clamp(1.04rem, 2.3vw, 1.24rem);
+    line-height: 1.48;
+    text-shadow:
+        0 8px 28px rgba(0, 0, 0, 0.34),
+        0 0 16px rgba(106, 255, 120, 0.18);
+}
+
+#aim-reticle {
+    position: absolute;
+    width: 68px;
+    height: 68px;
+    transform: translate(-50%, -50%);
+    transition:
+        left 60ms linear,
+        top 60ms linear,
+        opacity 100ms ease,
+        transform 100ms ease;
+}
+
+.aim-reticle-ring,
+.aim-reticle-dot {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    border-radius: 999px;
+}
+
+.aim-reticle-ring {
+    width: 68px;
+    height: 68px;
+    border: 2px solid rgba(244, 236, 214, 0.72);
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.28),
+        0 0 26px rgba(234, 210, 155, 0.24);
+    background:
+        radial-gradient(circle, rgba(244, 236, 214, 0.06) 0%, rgba(244, 236, 214, 0) 62%);
+}
+
+.aim-reticle-dot {
+    width: 10px;
+    height: 10px;
+    background: rgba(244, 236, 214, 0.96);
+    box-shadow: 0 0 16px rgba(244, 236, 214, 0.65);
+}
+
+#aim-reticle.armed .aim-reticle-ring {
+    border-color: rgba(234, 210, 155, 0.96);
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.28),
+        0 0 30px rgba(234, 210, 155, 0.38);
+}
+
+#aim-reticle.locked {
+    transform: translate(-50%, -50%) scale(1.06);
+}
+
+#aim-reticle.locked .aim-reticle-ring {
+    border-color: rgba(245, 223, 191, 1);
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.2),
+        0 0 34px rgba(245, 223, 191, 0.52);
+}
+
+#camera-preview-shell {
+    position: absolute;
+    right: 24px;
+    bottom: 24px;
+    width: min(320px, 28vw);
+    border-radius: 24px;
+    overflow: hidden;
+    border: 1px solid rgba(244, 236, 214, 0.16);
+    background: rgba(5, 8, 7, 0.72);
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.34);
+    backdrop-filter: blur(14px);
+}
+
+#camera-preview-frame {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    background:
+        radial-gradient(circle at top, rgba(66, 91, 74, 0.18), transparent 48%),
+        linear-gradient(180deg, rgba(8, 12, 10, 0.98), rgba(3, 5, 4, 0.98));
+}
+
+#webcam,
+#hand-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+    transform: scaleX(-1);
+}
+
+#webcam {
+    opacity: 0.98;
+}
+
+#hand-canvas {
+    opacity: 1;
+}
+
+#hit-effects-layer {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.hit-shockwave {
+    position: absolute;
+    border-radius: 999px;
+    transform: translate(-50%, -50%) scale(0.2);
+    opacity: 0;
+    background:
+        radial-gradient(circle, rgba(255, 248, 235, 0.98) 0 9%, rgba(255, 221, 152, 0.88) 12%, rgba(255, 110, 54, 0.66) 24%, rgba(255, 52, 30, 0.24) 46%, rgba(255, 46, 27, 0) 72%);
+    filter:
+        blur(0.8px)
+        drop-shadow(0 0 24px rgba(255, 218, 146, 0.9))
+        drop-shadow(0 0 72px rgba(255, 52, 28, 0.58));
+    animation: hit-shockwave-burst 360ms cubic-bezier(0.15, 0.7, 0.18, 1) forwards;
+}
+
+.hit-impact-core {
+    position: absolute;
+    border-radius: 999px;
+    transform: translate(-50%, -50%) scale(0.3);
+    background:
+        radial-gradient(circle, rgba(255, 251, 240, 1) 0 18%, rgba(255, 210, 120, 0.92) 28%, rgba(255, 104, 52, 0.72) 48%, rgba(255, 35, 22, 0.12) 78%, rgba(255, 35, 22, 0) 100%);
+    filter:
+        blur(1.6px)
+        drop-shadow(0 0 30px rgba(255, 250, 212, 0.92))
+        drop-shadow(0 0 74px rgba(255, 88, 44, 0.76));
+    animation: hit-impact-core-burst 220ms ease-out forwards;
+}
+
+.hit-explosion {
+    position: absolute;
+    width: 420px;
+    height: 420px;
+    transform: translate(-50%, -50%) scale(0.22);
+    transform-origin: center;
+    opacity: 0;
+    image-rendering: pixelated;
+    filter:
+        saturate(1.14)
+        drop-shadow(0 0 24px rgba(255, 180, 76, 0.78))
+        drop-shadow(0 0 40px rgba(255, 92, 34, 0.72))
+        drop-shadow(0 0 92px rgba(255, 40, 40, 0.38));
+    transition:
+        transform 120ms cubic-bezier(0.12, 0.74, 0.16, 1),
+        opacity 80ms linear;
+}
+
+.hit-explosion.active {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.08);
+}
+
+.hit-explosion.fade {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.42);
+}
+
+#countdown-overlay {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+}
+
+#countdown-value {
+    font-family: "Cormorant Garamond", serif;
+    font-size: clamp(7rem, 26vw, 18rem);
+    line-height: 0.85;
+    color: rgba(244, 236, 214, 0.96);
+    text-shadow: 0 16px 60px rgba(0, 0, 0, 0.48);
+}
+
+#modal-shell {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+}
+
+#modal-card {
+    width: min(560px, calc(100vw - 32px));
+    padding: 28px 28px 30px;
+    border-radius: 28px;
+    border: 1px solid var(--panel-line);
+    background:
+        linear-gradient(180deg, rgba(10, 16, 13, 0.92), rgba(4, 8, 6, 0.84)),
+        radial-gradient(circle at top, rgba(234, 210, 155, 0.08), transparent 42%);
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
+    backdrop-filter: blur(18px);
+    pointer-events: auto;
+}
+
+#modal-eyebrow {
+    margin: 0 0 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.26em;
+    font-size: 0.72rem;
+    color: var(--paper-soft);
+}
+
+#modal-title {
+    margin: 0;
+    font-family: "Cormorant Garamond", serif;
+    font-size: clamp(3.4rem, 10vw, 6.6rem);
+    line-height: 0.88;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: pre-line;
+    text-transform: uppercase;
+}
+
+#modal-copy {
+    margin: 18px 0 0;
+    max-width: 22ch;
+    color: var(--paper-soft);
+    font-size: clamp(1rem, 2.2vw, 1.2rem);
+    line-height: 1.5;
+}
+
+#results-grid {
+    margin-top: 24px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.result-stat {
+    padding: 14px 15px;
+    border-radius: 16px;
+    border: 1px solid rgba(244, 236, 214, 0.1);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.result-label {
+    display: block;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.68rem;
+    color: var(--paper-soft);
+}
+
+.result-value {
+    display: block;
+    font-size: clamp(1.1rem, 2.2vw, 1.7rem);
+    font-weight: 800;
+}
+
+.result-save-status {
+    margin: 18px 0 0;
+    min-height: 1.4em;
+    font-size: 0.96rem;
+    line-height: 1.45;
+    color: var(--paper-soft);
+}
+
+.result-save-status.success {
+    color: rgba(149, 255, 120, 0.95);
+}
+
+.result-save-status.pending {
+    color: rgba(255, 229, 136, 0.95);
+}
+
+.result-save-status.error {
+    color: rgba(255, 146, 146, 0.95);
+}
+
+#modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 22px;
+}
+
+button {
+    appearance: none;
+    border: 0;
+    border-radius: 999px;
+    cursor: pointer;
+    font: inherit;
+    transition: transform 140ms ease, opacity 140ms ease, background 140ms ease;
+}
+
+button:hover {
+    transform: translateY(-1px);
+}
+
+button:active {
+    transform: translateY(0);
+}
+
+.action-btn,
+.ghost-btn {
+    padding: 12px 18px;
+}
+
+.action-btn {
+    background: linear-gradient(135deg, var(--accent), #f4ddb0);
+    color: #120e09;
+    font-weight: 800;
+}
+
+.ghost-btn {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--paper);
+    border: 1px solid rgba(244, 236, 214, 0.14);
+}
+
+.hidden {
+    display: none !important;
+}
+
+@keyframes shell-impact-pulse {
+    0% {
+        transform: scale(1);
+    }
+    18% {
+        transform: scale(1.026);
+    }
+    42% {
+        transform: scale(0.988);
+    }
+    68% {
+        transform: scale(1.012);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+@keyframes impact-flash-burst {
+    0% {
+        opacity: 0;
+    }
+    8% {
+        opacity: 0.98;
+    }
+    34% {
+        opacity: 0.66;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+@keyframes hit-shockwave-burst {
+    0% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(0.18);
+    }
+    38% {
+        opacity: 0.92;
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1.18);
+    }
+}
+
+@keyframes hit-impact-core-burst {
+    0% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(0.24);
+    }
+    30% {
+        opacity: 0.96;
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1.38);
+    }
+}
+
+@media (max-width: 720px) {
+    #play-hud {
+        top: 16px;
+        left: 16px;
+        right: 16px;
+    }
+
+    .hud-pill {
+        min-width: 0;
+        padding: 14px 15px;
+    }
+
+    #instruction-overlay {
+        bottom: 16px;
+        left: 16px;
+        width: min(360px, calc(100vw - 32px));
+    }
+
+    #camera-preview-shell {
+        right: 16px;
+        bottom: 16px;
+        width: min(220px, 42vw);
+        border-radius: 18px;
+    }
+
+    #modal-shell {
+        padding: 16px;
+    }
+
+    #modal-card {
+        padding: 22px 20px 22px;
+        border-radius: 22px;
+    }
+
+    #results-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}

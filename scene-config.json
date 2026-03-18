@@ -1,0 +1,20 @@
+{
+  "backgroundPath": "HDogQOybEAAutN2.jpeg",
+  "roundDuration": 60,
+  "cameraZ": 18,
+  "cameraFov": 0.72,
+  "stageWidth": 26,
+  "throwOrigin": {
+    "x": 0,
+    "y": -5.1,
+    "z": 11.2
+  },
+  "throwArc": 1.35,
+  "throwDuration": 0.5,
+  "throwCooldownMs": 500,
+  "targetCooldown": 0.9,
+  "handThrowThreshold": 0.05,
+  "dildoWorldHeight": 3.2,
+  "dildoScaleNear": 1.08,
+  "dildoScaleFar": 0.7
+}
