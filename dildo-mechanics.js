@@ -85,17 +85,17 @@
     const throwSoundPool = buildAudioPool(DEFAULT_ASSETS.throwSounds, {
         label: "throw sound",
         cooldownMs: 120,
-        volume: 0.42
+        volume: 0.35
     });
     const woodHitSoundPool = buildAudioPool(DEFAULT_ASSETS.woodHitSounds, {
         label: "wood hit sound",
         cooldownMs: 100,
-        volume: 0.36
+        volume: 0.28
     });
     const correctSoundPool = buildAudioPool(DEFAULT_ASSETS.correctSounds, {
         label: "correct sound",
         cooldownMs: 70,
-        volume: 0.46
+        volume: 0.27
     });
     const wrongSoundPool = buildAudioPool(DEFAULT_ASSETS.wrongSounds, {
         label: "wrong sound",
