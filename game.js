@@ -43,6 +43,7 @@
         "sounds/CTBDTBTS1.mp3",
         "sounds/CTBDTBTS2.mp3"
     ];
+    const BACKGROUND_MUSIC_VOLUME = 0.72;
     const GAME_TITLE = "CTBD\nTBTS";
     const PLAYFUN_STORAGE_KEY = "vanity-fair-session-history-v1";
     const MAX_SESSION_HISTORY = 20;
@@ -232,7 +233,7 @@
         const soundtrack = new Audio(BACKGROUND_MUSIC_FILES[0]);
         soundtrack.preload = "auto";
         soundtrack.loop = false;
-        soundtrack.volume = 0.48;
+        soundtrack.volume = BACKGROUND_MUSIC_VOLUME;
         soundtrack.addEventListener("play", () => {
             state.audio.soundtrackPlaying = true;
             state.audio.soundtrackError = "";
@@ -314,7 +315,7 @@
 
         syncBackgroundMusicSource();
         soundtrack.loop = false;
-        soundtrack.volume = 0.48;
+        soundtrack.volume = BACKGROUND_MUSIC_VOLUME;
 
         try {
             await soundtrack.play();

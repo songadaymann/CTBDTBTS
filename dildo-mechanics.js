@@ -85,28 +85,28 @@
     const throwSoundPool = buildAudioPool(DEFAULT_ASSETS.throwSounds, {
         label: "throw sound",
         cooldownMs: 120,
-        volume: 0.9
+        volume: 0.42
     });
     const woodHitSoundPool = buildAudioPool(DEFAULT_ASSETS.woodHitSounds, {
         label: "wood hit sound",
         cooldownMs: 100,
-        volume: 0.85
+        volume: 0.36
     });
     const correctSoundPool = buildAudioPool(DEFAULT_ASSETS.correctSounds, {
         label: "correct sound",
         cooldownMs: 70,
-        volume: 0.95
+        volume: 0.46
     });
     const wrongSoundPool = buildAudioPool(DEFAULT_ASSETS.wrongSounds, {
         label: "wrong sound",
         cooldownMs: 70,
-        volume: 0.95
+        volume: 0.4
     });
     const beepleHitSoundPool = buildAudioPool(DEFAULT_ASSETS.beepleHitSounds, {
         label: "beeple hit sound",
         cooldownMs: 150,
         stopPrevious: true,
-        volume: 0.95
+        volume: 0.46
     });
 
     let flashOverlay = null;
