@@ -51,6 +51,7 @@
         let index = 0;
         let lastPlayTime = 0;
         let currentlyPlaying = null;
+        let warnedAutoplayBlock = false;
 
         function play() {
             const now = performance.now();
@@ -65,10 +66,46 @@
             }
             sound.currentTime = 0;
             sound.volume = volume;
-            sound.play().catch((error) => console.warn(`${label} playback blocked`, error));
+            const playPromise = sound.play();
+            if (playPromise && typeof playPromise.catch === "function") {
+                playPromise.then(() => {
+                    warnedAutoplayBlock = false;
+                }).catch((error) => {
+                    if (error?.name === "NotAllowedError") {
+                        if (!warnedAutoplayBlock) {
+                            console.warn(`${label} playback blocked until the player taps the page once.`);
+                            warnedAutoplayBlock = true;
+                        }
+                        return;
+                    }
+                    console.warn(`${label} playback blocked`, error);
+                });
+            }
             currentlyPlaying = sound;
             index = (index + 1) % pool.length;
             return sound;
+        }
+
+        async function prime() {
+            for (const sound of pool) {
+                const previousMuted = sound.muted;
+                try {
+                    sound.muted = true;
+                    sound.currentTime = 0;
+                    await sound.play();
+                    sound.pause();
+                    sound.currentTime = 0;
+                    warnedAutoplayBlock = false;
+                    return true;
+                } catch (error) {
+                    if (error?.name !== "NotAllowedError") {
+                        console.warn(`${label} prime failed`, error);
+                    }
+                } finally {
+                    sound.muted = previousMuted;
+                }
+            }
+            return false;
         }
 
         function stop() {
@@ -79,7 +116,7 @@
             currentlyPlaying = null;
         }
 
-        return { play, stop, pool };
+        return { play, stop, prime, pool };
     }
 
     const throwSoundPool = buildAudioPool(DEFAULT_ASSETS.throwSounds, {
@@ -534,6 +571,22 @@
         return beepleHitSoundPool.play();
     }
 
+    async function primeAudioPlayback() {
+        const pools = [
+            throwSoundPool,
+            woodHitSoundPool,
+            correctSoundPool,
+            wrongSoundPool,
+            beepleHitSoundPool
+        ];
+
+        for (const pool of pools) {
+            if (pool?.prime) {
+                await pool.prime();
+            }
+        }
+    }
+
     function spawnThrownDildo(scene, template, options = {}) {
         const {
             startPosition = new BABYLON.Vector3(0, 0, 0),
@@ -617,7 +670,8 @@
         createExplosionSprite,
         preloadExplosionFrames,
         ensureFlashOverlay,
-        createAudioPool: buildAudioPool
+        createAudioPool: buildAudioPool,
+        primeAudioPlayback
     };
 
     global.DildoMechanics = api;
@@ -635,4 +689,5 @@
     global.loadDildoTemplate = loadDildoTemplate;
     global.spawnThrownDildo = spawnThrownDildo;
     global.ensureDildoFlashOverlay = ensureFlashOverlay;
+    global.primeDildoAudio = primeAudioPlayback;
 })(globalThis);

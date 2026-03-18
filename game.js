@@ -38,6 +38,8 @@
 
     const FIXED_STEP = 1 / 60;
     const VELOCITY_HISTORY_SIZE = 5;
+    const MAX_REALTIME_FRAME_DELTA = 0.1;
+    const MAX_SIMULATION_STEPS_PER_FRAME = 5;
     const DILDO_FILE = "dildo.glb";
     const BACKGROUND_MUSIC_FILES = [
         "sounds/CTBDTBTS1.mp3",
@@ -62,6 +64,7 @@
         theme: "system",
         accuracyBonusMultiplier: 0.5
     };
+    const DEVICE_PROFILE = detectDeviceProfile();
 
     const state = {
         mode: MODES.BOOT,
@@ -81,6 +84,7 @@
         sceneReady: false,
         useVirtualTime: false,
         realTimeLast: 0,
+        realTimeAccumulator: 0,
         nextThrowAt: 0,
         assets: {
             status: "loading",
@@ -117,6 +121,7 @@
             previousWristX: null,
             previousWristY: null,
             previousHandZ: null,
+            aimTargetId: null,
             error: "",
             stream: null,
             pumpToken: 0
@@ -192,11 +197,14 @@
         state.stageWidth = state.config.stageWidth;
         state.stageHeight = state.stageWidth * (backgroundImage.height / backgroundImage.width);
 
-        engine = new BABYLON.Engine(ui.canvas, true, {
-            preserveDrawingBuffer: true,
+        engine = new BABYLON.Engine(ui.canvas, !DEVICE_PROFILE.mobileLike, {
+            preserveDrawingBuffer: false,
             stencil: true,
-            antialias: true
+            powerPreference: "high-performance"
         });
+        if (typeof engine.setHardwareScalingLevel === "function") {
+            engine.setHardwareScalingLevel(DEVICE_PROFILE.hardwareScalingLevel);
+        }
 
         scene = createScene(backgroundImage);
         if (typeof window.preloadExplosionFrames === "function") {
@@ -215,13 +223,22 @@
 
     function bindUi() {
         document.addEventListener("pointerdown", () => {
+            if (typeof window.primeDildoAudio === "function") {
+                void window.primeDildoAudio();
+            }
             void primeBackgroundMusicFromGesture();
         }, { passive: true });
         ui.retryCameraBtn.addEventListener("click", () => {
+            if (typeof window.primeDildoAudio === "function") {
+                void window.primeDildoAudio();
+            }
             void primeBackgroundMusicFromGesture();
             void initHandTracking(true);
         });
         ui.playAgainBtn.addEventListener("click", () => {
+            if (typeof window.primeDildoAudio === "function") {
+                void window.primeDildoAudio();
+            }
             void primeBackgroundMusicFromGesture();
             if (state.hand.trackingState === "ready") {
                 beginCountdown();
@@ -629,9 +646,9 @@
 
             hands.setOptions({
                 maxNumHands: 1,
-                modelComplexity: 1,
-                minDetectionConfidence: 0.7,
-                minTrackingConfidence: 0.5
+                modelComplexity: DEVICE_PROFILE.handModelComplexity,
+                minDetectionConfidence: 0.65,
+                minTrackingConfidence: 0.45
             });
 
             hands.onResults(onHandResults);
@@ -640,8 +657,8 @@
                 navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: "user",
-                        width: { ideal: 640 },
-                        height: { ideal: 480 }
+                        width: { ideal: DEVICE_PROFILE.cameraWidth },
+                        height: { ideal: DEVICE_PROFILE.cameraHeight }
                     },
                     audio: false
                 }),
@@ -677,17 +694,28 @@
     }
 
     function startHandPump(hands, pumpToken) {
-        const pump = async () => {
+        let sendInFlight = false;
+        let lastSentAt = 0;
+
+        const pump = async (timestamp) => {
             if (state.hand.pumpToken !== pumpToken || state.hand.trackingState !== "ready") {
                 return;
             }
 
             try {
-                if (ui.webcamVideo.readyState >= 2) {
+                if (
+                    !sendInFlight &&
+                    ui.webcamVideo.readyState >= 2 &&
+                    timestamp - lastSentAt >= DEVICE_PROFILE.handTrackingFrameIntervalMs
+                ) {
+                    sendInFlight = true;
+                    lastSentAt = timestamp;
                     await hands.send({ image: ui.webcamVideo });
                 }
             } catch (error) {
                 console.warn("Hand frame send failed:", error);
+            } finally {
+                sendInFlight = false;
             }
 
             requestAnimationFrame(pump);
@@ -705,6 +733,7 @@
         if (ui.webcamVideo) {
             ui.webcamVideo.srcObject = null;
         }
+        state.hand.aimTargetId = null;
     }
 
     function maybeEnterIntro() {
@@ -779,6 +808,7 @@
     function createScene(backgroundImage) {
         const createdScene = new BABYLON.Scene(engine);
         createdScene.clearColor = BABYLON.Color4.FromColor3(BABYLON.Color3.FromHexString("#070b08"), 1);
+        createdScene.skipPointerMovePicking = true;
 
         camera = new BABYLON.FreeCamera("camera", new BABYLON.Vector3(0, 0, state.config.cameraZ), createdScene);
         camera.fov = state.config.cameraFov;
@@ -815,6 +845,8 @@
         backdropMaterial.disableLighting = true;
         backdropMaterial.backFaceCulling = false;
         backdropMesh.material = backdropMaterial;
+        backdropMesh.freezeWorldMatrix();
+        backdropMaterial.freeze();
 
         createdScene.onPointerObservable.add((pointerInfo) => {
             if (pointerInfo.type !== BABYLON.PointerEventTypes.POINTERDOWN) return;
@@ -978,6 +1010,24 @@
             .sort((a, b) => a.distance - b.distance);
 
         return ranked[0] ? ranked[0].target : null;
+    }
+
+    function updateHandAimTarget() {
+        if (!state.hand.visible) {
+            state.hand.aimTargetId = null;
+            return null;
+        }
+
+        const pickInfo = pickBackdropAtScreenUv(state.hand.screenU, state.hand.screenV);
+        if (!pickInfo?.hit || !pickInfo.pickedPoint) {
+            state.hand.aimTargetId = null;
+            return null;
+        }
+
+        const imageUv = worldToImageUv(pickInfo.pickedPoint);
+        const target = findTargetAtUv(imageUv.u, imageUv.v);
+        state.hand.aimTargetId = target?.id || null;
+        return target || null;
     }
 
     function targetHitMetric(u, v, target) {
@@ -1296,6 +1346,7 @@
             state.hand.previousWristX = wrist.x;
             state.hand.previousWristY = wrist.y;
             state.hand.previousHandZ = wrist.z;
+            updateHandAimTarget();
 
             const maxRecentVelocity = Math.max(...state.hand.velocityHistory);
             if (canThrowNow() && maxRecentVelocity > state.config.handThrowThreshold) {
@@ -1305,6 +1356,7 @@
         } else {
             state.hand.visible = false;
             state.hand.velocityHistory = [];
+            state.hand.aimTargetId = null;
         }
     }
 
@@ -1467,17 +1519,10 @@
     }
 
     function currentAimTarget() {
-        if (!state.hand.visible || !scene || !backdropMesh) {
+        if (!state.hand.visible || !state.hand.aimTargetId) {
             return null;
         }
-
-        const pickInfo = pickBackdropAtScreenUv(state.hand.screenU, state.hand.screenV);
-        if (!pickInfo?.hit || !pickInfo.pickedPoint) {
-            return null;
-        }
-
-        const imageUv = worldToImageUv(pickInfo.pickedPoint);
-        return findTargetAtUv(imageUv.u, imageUv.v);
+        return state.targets.find((target) => target.id === state.hand.aimTargetId) || null;
     }
 
     function spawnHitOverlay(target) {
@@ -1529,9 +1574,23 @@
                 if (!state.realTimeLast) {
                     state.realTimeLast = now;
                 }
-                const dt = Math.min(1 / 20, (now - state.realTimeLast) / 1000);
+                const dt = Math.min(MAX_REALTIME_FRAME_DELTA, Math.max(0, (now - state.realTimeLast) / 1000));
                 state.realTimeLast = now;
-                updateSimulation(dt);
+                state.realTimeAccumulator = Math.min(
+                    state.realTimeAccumulator + dt,
+                    FIXED_STEP * MAX_SIMULATION_STEPS_PER_FRAME
+                );
+
+                let steps = 0;
+                while (state.realTimeAccumulator >= FIXED_STEP && steps < MAX_SIMULATION_STEPS_PER_FRAME) {
+                    updateSimulation(FIXED_STEP);
+                    state.realTimeAccumulator -= FIXED_STEP;
+                    steps += 1;
+                }
+
+                if (steps >= MAX_SIMULATION_STEPS_PER_FRAME && state.realTimeAccumulator >= FIXED_STEP) {
+                    state.realTimeAccumulator = 0;
+                }
             }
 
             scene.render();
@@ -1606,6 +1665,22 @@
 
     function clamp(value, min, max) {
         return Math.min(max, Math.max(min, value));
+    }
+
+    function detectDeviceProfile() {
+        const userAgent = navigator.userAgent || "";
+        const coarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches || false;
+        const touchPoints = navigator.maxTouchPoints || 0;
+        const mobileLike = coarsePointer || touchPoints > 1 || /Android|iPhone|iPad|iPod/i.test(userAgent);
+
+        return {
+            mobileLike,
+            hardwareScalingLevel: mobileLike ? Math.max(1.4, Math.min(2.2, window.devicePixelRatio || 1.6)) : 1,
+            cameraWidth: mobileLike ? 480 : 640,
+            cameraHeight: mobileLike ? 360 : 480,
+            handModelComplexity: mobileLike ? 0 : 1,
+            handTrackingFrameIntervalMs: mobileLike ? 50 : 33
+        };
     }
 
     function vectorMagnitude(vector) {
