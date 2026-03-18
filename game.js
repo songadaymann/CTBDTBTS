@@ -885,8 +885,12 @@
 
     function pickBackdropAtScreenUv(screenU, screenV) {
         if (!scene || !engine || !backdropMesh) return null;
-        const x = screenU * engine.getRenderWidth();
-        const y = screenV * engine.getRenderHeight();
+        const canvasRect = ui.canvas?.getBoundingClientRect?.();
+        const hardwareScale = typeof engine.getHardwareScalingLevel === "function"
+            ? engine.getHardwareScalingLevel()
+            : 1;
+        const x = screenU * (canvasRect?.width || ui.canvas?.clientWidth || engine.getRenderWidth()) * hardwareScale;
+        const y = screenV * (canvasRect?.height || ui.canvas?.clientHeight || engine.getRenderHeight()) * hardwareScale;
         return scene.pick(x, y, (mesh) => mesh === backdropMesh, false, camera);
     }
 
@@ -1711,6 +1715,10 @@
             return { screenX: null, screenY: null, screenVisible: false };
         }
 
+        const hardwareScale = typeof engine.getHardwareScalingLevel === "function"
+            ? engine.getHardwareScalingLevel()
+            : 1;
+
         const projected = BABYLON.Vector3.Project(
             imageUvToWorld(target.u, target.v, 0.04),
             BABYLON.Matrix.Identity(),
@@ -1719,8 +1727,8 @@
         );
 
         return {
-            screenX: Number(projected.x.toFixed(1)),
-            screenY: Number(projected.y.toFixed(1)),
+            screenX: Number((projected.x / hardwareScale).toFixed(1)),
+            screenY: Number((projected.y / hardwareScale).toFixed(1)),
             screenVisible: projected.z >= 0 && projected.z <= 1
         };
     }
