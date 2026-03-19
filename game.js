@@ -1138,14 +1138,28 @@
         };
     }
 
-    function restartClassAnimation(element, className, durationMs) {
+    function restartAlternatingClassAnimation(element, classNames, durationMs, storageKey) {
         if (!element) return;
-        element.classList.remove(className);
-        void element.offsetWidth;
-        element.classList.add(className);
-        window.setTimeout(() => {
+        const nextIndex = ((element.__dildoAnimState?.[storageKey] || 0) + 1) % classNames.length;
+        element.__dildoAnimState = element.__dildoAnimState || {};
+        element.__dildoAnimState[storageKey] = nextIndex;
+        classNames.forEach((className) => {
             element.classList.remove(className);
+        });
+        element.classList.add(classNames[nextIndex]);
+        window.setTimeout(() => {
+            element.classList.remove(classNames[nextIndex]);
         }, durationMs);
+    }
+
+    function runAfterNextPaint(callback) {
+        if (typeof window.requestAnimationFrame !== "function") {
+            window.setTimeout(callback, 16);
+            return;
+        }
+        window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(callback);
+        });
     }
 
     function triggerImpactFlashes() {
@@ -1166,8 +1180,8 @@
     function triggerImpactPunch(target) {
         if (!DEVICE_PROFILE.enableDomHitEffects) return;
 
-        restartClassAnimation(ui.appShell, "impact-pulse", 240);
-        restartClassAnimation(ui.appShell, "impact-flash", 260);
+        restartAlternatingClassAnimation(ui.appShell, ["impact-pulse-a", "impact-pulse-b"], 240, "impactPulse");
+        restartAlternatingClassAnimation(ui.appShell, ["impact-flash-a", "impact-flash-b"], 260, "impactFlash");
 
         if (!ui.hitEffectsLayer || !engine) return;
 
@@ -1229,47 +1243,50 @@
                 }, 34);
             }
         }
-        triggerImpactFlashes();
-        if (DEVICE_PROFILE.enableCameraShake && typeof window.cameraShake === "function") {
-            if (DEVICE_PROFILE.mobileLike) {
-                window.cameraShake(camera, 0.72, 220);
-            } else {
-                window.cameraShake(camera, 1.02, 320);
-                window.setTimeout(() => {
-                    window.cameraShake(camera, 0.68, 260);
-                }, 72);
+        const feedbackPosition = impactPosition.clone();
+        window.requestAnimationFrame(() => {
+            triggerImpactFlashes();
+            if (DEVICE_PROFILE.enableCameraShake && typeof window.cameraShake === "function") {
+                if (DEVICE_PROFILE.mobileLike) {
+                    window.cameraShake(camera, 0.72, 220);
+                } else {
+                    window.cameraShake(camera, 1.02, 320);
+                    window.setTimeout(() => {
+                        window.cameraShake(camera, 0.68, 260);
+                    }, 72);
+                }
             }
-        }
-        if (DEVICE_PROFILE.enableBurstEffects && typeof window.createImpactBurst === "function") {
-            window.createImpactBurst(
-                scene,
-                impactPosition,
-                DEVICE_PROFILE.mobileLike ? 1.7 : 2.55,
-                BABYLON.Color3.FromHexString("#ff4d42")
-            );
-            if (!DEVICE_PROFILE.mobileLike) {
+            if (DEVICE_PROFILE.enableBurstEffects && typeof window.createImpactBurst === "function") {
                 window.createImpactBurst(
                     scene,
-                    impactPosition.add(new BABYLON.Vector3(0, 0, 0.08)),
-                    1.9,
-                    BABYLON.Color3.FromHexString("#fff0d1")
+                    feedbackPosition,
+                    DEVICE_PROFILE.mobileLike ? 1.7 : 2.55,
+                    BABYLON.Color3.FromHexString("#ff4d42")
+                );
+                if (!DEVICE_PROFILE.mobileLike) {
+                    window.createImpactBurst(
+                        scene,
+                        feedbackPosition.add(new BABYLON.Vector3(0, 0, 0.08)),
+                        1.9,
+                        BABYLON.Color3.FromHexString("#fff0d1")
+                    );
+                }
+            }
+            if (DEVICE_PROFILE.enableBurstEffects && typeof window.createExplosionSprite === "function") {
+                window.createExplosionSprite(
+                    scene,
+                    feedbackPosition,
+                    {
+                        size: DEVICE_PROFILE.mobileLike ? 6.2 : 8.8,
+                        growth: DEVICE_PROFILE.mobileLike ? 2.1 : 2.9,
+                        duration: DEVICE_PROFILE.mobileLike ? 320 : 480,
+                        zOffset: DEVICE_PROFILE.mobileLike ? 0.68 : 0.86
+                    }
                 );
             }
-        }
-        if (DEVICE_PROFILE.enableBurstEffects && typeof window.createExplosionSprite === "function") {
-            window.createExplosionSprite(
-                scene,
-                impactPosition,
-                {
-                    size: DEVICE_PROFILE.mobileLike ? 6.2 : 8.8,
-                    growth: DEVICE_PROFILE.mobileLike ? 2.1 : 2.9,
-                    duration: DEVICE_PROFILE.mobileLike ? 320 : 480,
-                    zOffset: DEVICE_PROFILE.mobileLike ? 0.68 : 0.86
-                }
-            );
-        }
-        triggerImpactPunch(target);
-        spawnHitOverlay(target);
+            triggerImpactPunch(target);
+            spawnHitOverlay(target);
+        });
         state.hitStopRemaining = Math.max(
             state.hitStopRemaining,
             DEVICE_PROFILE.mobileLike ? HIT_STOP_DURATION * 0.65 : HIT_STOP_DURATION
@@ -1692,8 +1709,11 @@
         explosion.style.width = `${baseSize}px`;
         explosion.style.height = `${baseSize}px`;
         ui.hitEffectsLayer.appendChild(explosion);
-        void explosion.offsetWidth;
-        explosion.classList.add("active");
+        runAfterNextPaint(() => {
+            if (explosion.isConnected) {
+                explosion.classList.add("active");
+            }
+        });
 
         HIT_EXPLOSION_FRAMES.forEach((frame, index) => {
             window.setTimeout(() => {
