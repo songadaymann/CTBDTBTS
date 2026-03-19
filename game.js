@@ -58,6 +58,9 @@
         "effects/enemy-explosion/enemy-explosion-6.png"
     ];
     const HIT_STOP_DURATION = 0.085;
+    const PERF_DEBUG_ENABLED = new URLSearchParams(window.location.search).get("perf") === "1";
+    const PERF_SAMPLE_INTERVAL_MS = 500;
+    const PERF_CONSOLE_INTERVAL_MS = 2000;
     const DEFAULT_PLAYFUN_CONFIG = {
         enabled: false,
         apiKey: "",
@@ -127,6 +130,18 @@
             error: "",
             stream: null,
             pumpToken: 0
+        },
+        perf: {
+            enabled: PERF_DEBUG_ENABLED,
+            sampleStartMs: 0,
+            frameCount: 0,
+            updateAccumMs: 0,
+            renderAccumMs: 0,
+            maxUpdateMs: 0,
+            maxRenderMs: 0,
+            droppedStepFrames: 0,
+            lastConsoleLogMs: 0,
+            snapshot: null
         }
     };
 
@@ -163,7 +178,8 @@
         resultSaveStatus: document.getElementById("result-save-status"),
         playfunApiKeyMeta: document.getElementById("ogp-key-meta") || document.getElementById("playfun-api-key-meta"),
         webcamVideo: document.getElementById("webcam"),
-        handCanvas: document.getElementById("hand-canvas")
+        handCanvas: document.getElementById("hand-canvas"),
+        perfOverlay: null
     };
 
     let engine;
@@ -182,6 +198,7 @@
     async function bootstrap() {
         bindUi();
         initBackgroundMusic();
+        initPerfDebug();
 
         const [config, fileTargets, playfunConfig] = await Promise.all([
             loadJson("scene-config.json", DEFAULT_CONFIG),
@@ -258,6 +275,33 @@
                 beginCountdown();
             }
         });
+    }
+
+    function initPerfDebug() {
+        if (!state.perf.enabled || ui.perfOverlay) return;
+
+        const overlay = document.createElement("pre");
+        overlay.id = "perf-debug-overlay";
+        Object.assign(overlay.style, {
+            position: "fixed",
+            right: "10px",
+            bottom: "10px",
+            zIndex: "9998",
+            margin: "0",
+            padding: "10px 12px",
+            maxWidth: "min(88vw, 360px)",
+            whiteSpace: "pre-wrap",
+            font: '12px/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+            color: "#b8ffad",
+            background: "rgba(0, 0, 0, 0.78)",
+            border: "1px solid rgba(184, 255, 173, 0.25)",
+            borderRadius: "12px",
+            pointerEvents: "none",
+            boxShadow: "0 12px 30px rgba(0,0,0,0.32)"
+        });
+        overlay.textContent = "perf debug enabled";
+        document.body.appendChild(overlay);
+        ui.perfOverlay = overlay;
     }
 
     function initBackgroundMusic() {
@@ -1651,6 +1695,7 @@
     function setupRealtimeLoop() {
         handleResize();
         engine.runRenderLoop(() => {
+            let frameUpdateMs = 0;
             if (!state.useVirtualTime) {
                 const now = performance.now();
                 if (!state.realTimeLast) {
@@ -1664,18 +1709,26 @@
                 );
 
                 let steps = 0;
+                const updateStartMs = performance.now();
                 while (state.realTimeAccumulator >= FIXED_STEP && steps < MAX_SIMULATION_STEPS_PER_FRAME) {
                     updateSimulation(FIXED_STEP);
                     state.realTimeAccumulator -= FIXED_STEP;
                     steps += 1;
                 }
+                frameUpdateMs = performance.now() - updateStartMs;
 
                 if (steps >= MAX_SIMULATION_STEPS_PER_FRAME && state.realTimeAccumulator >= FIXED_STEP) {
                     state.realTimeAccumulator = 0;
+                    if (state.perf.enabled) {
+                        state.perf.droppedStepFrames += 1;
+                    }
                 }
             }
 
+            const renderStartMs = performance.now();
             scene.render();
+            const frameRenderMs = performance.now() - renderStartMs;
+            recordPerfFrame(frameUpdateMs, frameRenderMs);
         });
     }
 
@@ -1684,6 +1737,7 @@
             engine.resize();
         }
         updateUi();
+        updatePerfOverlay();
     }
 
     function disposeProjectile(projectile) {
@@ -1754,6 +1808,105 @@
         if (!DEVICE_PROFILE.mobileLike) return false;
         if ([MODES.PLAYING, MODES.RESULTS, MODES.CAMERA_ERROR].includes(state.mode)) return false;
         return window.innerHeight > window.innerWidth;
+    }
+
+    function getActiveMeshCount() {
+        try {
+            if (typeof scene?.getActiveMeshes === "function") {
+                return scene.getActiveMeshes().length;
+            }
+            return scene?._activeMeshes?.length || 0;
+        } catch {
+            return 0;
+        }
+    }
+
+    function getLoadedTextureCount() {
+        try {
+            if (typeof engine?.getLoadedTexturesCache === "function") {
+                return engine.getLoadedTexturesCache().length;
+            }
+            return scene?.textures?.length || 0;
+        } catch {
+            return 0;
+        }
+    }
+
+    function buildPerfSnapshot() {
+        const sampleDurationMs = Math.max(1, performance.now() - (state.perf.sampleStartMs || performance.now()));
+        const frameCount = Math.max(1, state.perf.frameCount);
+        return {
+            enabled: state.perf.enabled,
+            inputMode: DEVICE_PROFILE.mobileLike ? "tap" : "camera",
+            fps: Number((engine?.getFps?.() || 0).toFixed(1)),
+            avgUpdateMs: Number((state.perf.updateAccumMs / frameCount).toFixed(2)),
+            avgRenderMs: Number((state.perf.renderAccumMs / frameCount).toFixed(2)),
+            maxUpdateMs: Number(state.perf.maxUpdateMs.toFixed(2)),
+            maxRenderMs: Number(state.perf.maxRenderMs.toFixed(2)),
+            frameCount,
+            sampleDurationMs: Number(sampleDurationMs.toFixed(0)),
+            droppedStepFrames: state.perf.droppedStepFrames,
+            projectiles: state.projectiles.length,
+            hitEffectNodes: ui.hitEffectsLayer?.childElementCount || 0,
+            totalMeshes: scene?.meshes?.length || 0,
+            activeMeshes: getActiveMeshCount(),
+            textures: getLoadedTextureCount(),
+            hardwareScaling: typeof engine?.getHardwareScalingLevel === "function"
+                ? Number(engine.getHardwareScalingLevel().toFixed(2))
+                : 1,
+            renderWidth: engine?.getRenderWidth?.() || 0,
+            renderHeight: engine?.getRenderHeight?.() || 0,
+            canvasWidth: Math.round(ui.canvas?.clientWidth || 0),
+            canvasHeight: Math.round(ui.canvas?.clientHeight || 0),
+            mode: state.mode
+        };
+    }
+
+    function updatePerfOverlay(snapshot = state.perf.snapshot) {
+        if (!state.perf.enabled || !ui.perfOverlay) return;
+        const data = snapshot || buildPerfSnapshot();
+        ui.perfOverlay.textContent = [
+            `fps ${data.fps} | upd ${data.avgUpdateMs}ms | rnd ${data.avgRenderMs}ms`,
+            `max upd ${data.maxUpdateMs} | max rnd ${data.maxRenderMs}`,
+            `meshes ${data.activeMeshes}/${data.totalMeshes} | tex ${data.textures} | proj ${data.projectiles}`,
+            `fx ${data.hitEffectNodes} | hw ${data.hardwareScaling} | ${data.renderWidth}x${data.renderHeight}`,
+            `mode ${data.mode} | input ${data.inputMode} | dropped ${data.droppedStepFrames}`
+        ].join("\n");
+    }
+
+    function recordPerfFrame(updateMs, renderMs) {
+        if (!state.perf.enabled) return;
+        const now = performance.now();
+        if (!state.perf.sampleStartMs) {
+            state.perf.sampleStartMs = now;
+        }
+
+        state.perf.frameCount += 1;
+        state.perf.updateAccumMs += updateMs;
+        state.perf.renderAccumMs += renderMs;
+        state.perf.maxUpdateMs = Math.max(state.perf.maxUpdateMs, updateMs);
+        state.perf.maxRenderMs = Math.max(state.perf.maxRenderMs, renderMs);
+
+        if (now - state.perf.sampleStartMs < PERF_SAMPLE_INTERVAL_MS) {
+            return;
+        }
+
+        const snapshot = buildPerfSnapshot();
+        state.perf.snapshot = snapshot;
+        updatePerfOverlay(snapshot);
+
+        if (now - state.perf.lastConsoleLogMs >= PERF_CONSOLE_INTERVAL_MS) {
+            console.log("[perf]", JSON.stringify(snapshot));
+            state.perf.lastConsoleLogMs = now;
+        }
+
+        state.perf.sampleStartMs = now;
+        state.perf.frameCount = 0;
+        state.perf.updateAccumMs = 0;
+        state.perf.renderAccumMs = 0;
+        state.perf.maxUpdateMs = 0;
+        state.perf.maxRenderMs = 0;
+        state.perf.droppedStepFrames = 0;
     }
 
     function detectDeviceProfile() {
@@ -1867,6 +2020,7 @@
                 screenV: Number(state.hand.screenV.toFixed(4)),
                 velocityMagnitude: Number(vectorMagnitude(state.hand.currentVelocity).toFixed(4))
             },
+            perf: state.perf.snapshot || (state.perf.enabled ? buildPerfSnapshot() : null),
             targets: state.targets.map((target) => ({
                 ...projectTargetToScreen(target),
                 id: target.id,
@@ -1906,6 +2060,12 @@
 
     window.__forceStartRound = beginCountdown;
     window.__debugAdvanceSoundtrack = advanceBackgroundMusicTrack;
+    window.__perfSnapshot = () => buildPerfSnapshot();
+    window.__logPerfNow = () => {
+        const snapshot = buildPerfSnapshot();
+        console.log("[perf-manual]", JSON.stringify(snapshot));
+        return snapshot;
+    };
     window.__forceIntroForTest = function forceIntroForTest(options = {}) {
         state.hand.trackingState = "ready";
         state.hand.error = "";
