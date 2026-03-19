@@ -187,12 +187,23 @@
     let camera;
     let backdropMesh;
     let handCtx;
+    let uiSyncPending = true;
+
+    function requestUiSync() {
+        uiSyncPending = true;
+    }
+
+    function flushUiSync(force = false) {
+        if (!force && !uiSyncPending) return;
+        uiSyncPending = false;
+        updateUi();
+    }
 
     bootstrap().catch((error) => {
         console.error("Failed to bootstrap Vanity Fair:", error);
         state.mode = MODES.CAMERA_ERROR;
         state.hand.error = "The game failed to load.";
-        updateUi();
+        flushUiSync(true);
     });
 
     async function bootstrap() {
@@ -232,7 +243,7 @@
             window.preloadExplosionFrames(scene);
         }
         initPlayfun();
-        updateUi();
+        flushUiSync(true);
         setupRealtimeLoop();
         window.addEventListener("resize", handleResize);
         window.addEventListener("pagehide", stopBackgroundMusic);
@@ -242,7 +253,7 @@
         if (DEVICE_PROFILE.mobileLike) {
             state.hand.trackingState = "disabled";
             maybeEnterIntro();
-            updateUi();
+            requestUiSync();
         } else {
             void initHandTracking();
         }
@@ -456,7 +467,7 @@
                 state.playfun.status = "ready";
                 state.playfun.error = "";
                 void flushPendingPlayfunSave();
-                updateUi();
+                requestUiSync();
             });
 
             sdk.on("SavePointsSuccess", () => {
@@ -464,7 +475,7 @@
                 state.playfun.currentSessionSummary.saveState = "saved";
                 state.playfun.currentSessionSummary.saveMessage = `Saved ${state.playfun.currentSessionSummary.rewardPoints} points to Play.fun.`;
                 persistSessionSummary(state.playfun.currentSessionSummary);
-                updateUi();
+                requestUiSync();
             });
 
             sdk.on("SavePointsFailed", (error) => {
@@ -473,7 +484,7 @@
                 state.playfun.currentSessionSummary.saveMessage = "Play.fun save failed. Session kept locally.";
                 state.playfun.currentSessionSummary.saveError = String(error?.message || error || "");
                 persistSessionSummary(state.playfun.currentSessionSummary);
-                updateUi();
+                requestUiSync();
             });
 
             sdk.init({ gameId: config.gameId });
@@ -544,13 +555,13 @@
 
         state.playfun.currentSessionSummary = summary;
         persistSessionSummary(summary);
-        updateUi();
+        requestUiSync();
 
         if (summary.rewardPoints <= 0) {
             summary.saveState = "idle";
             summary.saveMessage = "No reward this round. Session still recorded locally.";
             persistSessionSummary(summary);
-            updateUi();
+            requestUiSync();
             return;
         }
 
@@ -558,7 +569,7 @@
             summary.saveState = "success";
             summary.saveMessage = `Saved ${summary.rewardPoints} session points locally. Add Play.fun credentials to publish rewards.`;
             persistSessionSummary(summary);
-            updateUi();
+            requestUiSync();
             return;
         }
 
@@ -566,7 +577,7 @@
             summary.saveState = "error";
             summary.saveMessage = "Play.fun config is incomplete. Session kept locally.";
             persistSessionSummary(summary);
-            updateUi();
+            requestUiSync();
             return;
         }
 
@@ -574,7 +585,7 @@
             summary.saveState = "error";
             summary.saveMessage = "Play.fun SDK is unavailable. Session kept locally.";
             persistSessionSummary(summary);
-            updateUi();
+            requestUiSync();
             return;
         }
 
@@ -583,7 +594,7 @@
             summary.saveMessage = "Waiting for Play.fun to connect.";
             state.playfun.pendingSessionSummary = summary;
             persistSessionSummary(summary);
-            updateUi();
+            requestUiSync();
             return;
         }
 
@@ -609,7 +620,7 @@
         summary.saveState = "pending";
         summary.saveMessage = `Saving ${summary.rewardPoints} points to Play.fun...`;
         persistSessionSummary(summary);
-        updateUi();
+        requestUiSync();
 
         try {
             state.playfun.sdk.addPoints(summary.rewardPoints);
@@ -625,7 +636,7 @@
         } finally {
             state.playfun.savingSessionId = null;
             persistSessionSummary(summary);
-            updateUi();
+            requestUiSync();
         }
     }
 
@@ -653,12 +664,12 @@
         if (typeof window.loadDildoTemplate !== "function" || !BABYLON.SceneLoader) {
             state.assets.status = "fallback";
             maybeEnterIntro();
-            updateUi();
+            requestUiSync();
             return;
         }
 
         state.assets.status = "loading";
-        updateUi();
+        requestUiSync();
 
         try {
             const result = await window.loadDildoTemplate(scene, {
@@ -674,14 +685,14 @@
         }
 
         maybeEnterIntro();
-        updateUi();
+        requestUiSync();
     }
 
     async function initHandTracking(forceRetry = false) {
         if (DEVICE_PROFILE.mobileLike) {
             state.hand.trackingState = "disabled";
             maybeEnterIntro();
-            updateUi();
+            requestUiSync();
             return;
         }
         if (!forceRetry && (state.hand.trackingState === "starting" || state.hand.trackingState === "ready")) {
@@ -691,7 +702,7 @@
             state.hand.trackingState = "error";
             state.hand.error = "Camera tracking failed to load.";
             state.mode = MODES.CAMERA_ERROR;
-            updateUi();
+            requestUiSync();
             return;
         }
 
@@ -700,7 +711,7 @@
         if (state.mode === MODES.CAMERA_ERROR) {
             state.mode = MODES.BOOT;
         }
-        updateUi();
+        requestUiSync();
 
         try {
             handCtx = ui.handCanvas.getContext("2d");
@@ -747,7 +758,7 @@
             state.hand.pumpToken = pumpToken;
             startHandPump(hands, pumpToken);
             maybeEnterIntro();
-            updateUi();
+            requestUiSync();
         } catch (error) {
             console.warn("Camera access failed:", error);
             stopHandStream();
@@ -755,7 +766,7 @@
             state.hand.visible = false;
             state.hand.error = error?.message || "Camera access was denied.";
             state.mode = MODES.CAMERA_ERROR;
-            updateUi();
+            requestUiSync();
         }
     }
 
@@ -836,7 +847,7 @@
         resetRoundStats();
         state.mode = MODES.COUNTDOWN;
         state.countdownRemaining = 3;
-        updateUi();
+        requestUiSync();
     }
 
     function startRound() {
@@ -848,7 +859,7 @@
         state.mode = MODES.PLAYING;
         state.timeRemaining = state.config.roundDuration;
         void ensureBackgroundMusicPlaying();
-        updateUi();
+        requestUiSync();
     }
 
     function finishRound() {
@@ -857,7 +868,7 @@
         resetTargets();
         state.playfun.currentSessionSummary = sessionSummary;
         state.mode = MODES.RESULTS;
-        updateUi();
+        requestUiSync();
         void saveSessionRewards(sessionSummary);
     }
 
@@ -998,7 +1009,7 @@
             state.mode = MODES.INTRO_HIT;
         }
 
-        updateUi();
+        requestUiSync();
     }
 
     function createProjectile(destination, target, handVelocity, source) {
@@ -1268,7 +1279,7 @@
             state.score += target.points;
             state.hits += 1;
             state.bestHit = Math.max(state.bestHit, target.points);
-            updateUi();
+            requestUiSync();
             return true;
         }
 
@@ -1283,7 +1294,7 @@
     function updateSimulation(dt) {
         if (state.hitStopRemaining > 0) {
             state.hitStopRemaining = Math.max(0, state.hitStopRemaining - dt);
-            updateUi();
+            requestUiSync();
             return;
         }
 
@@ -1325,14 +1336,14 @@
             if (state.countdownRemaining <= 0) {
                 startRound();
             }
+            requestUiSync();
         } else if (state.mode === MODES.PLAYING) {
             state.timeRemaining = Math.max(0, state.timeRemaining - dt);
             if (state.timeRemaining <= 0) {
                 finishRound();
             }
+            requestUiSync();
         }
-
-        updateUi();
     }
 
     function updateProjectileVisual(projectile, position, direction) {
@@ -1457,6 +1468,8 @@
             state.hand.velocityHistory = [];
             state.hand.aimTargetId = null;
         }
+
+        requestUiSync();
     }
 
     function updateUi() {
@@ -1730,6 +1743,7 @@
                 }
             }
 
+            flushUiSync();
             const renderStartMs = performance.now();
             scene.render();
             const frameRenderMs = performance.now() - renderStartMs;
@@ -1741,7 +1755,8 @@
         if (engine) {
             engine.resize();
         }
-        updateUi();
+        requestUiSync();
+        flushUiSync(true);
         updatePerfOverlay();
     }
 
@@ -1927,11 +1942,11 @@
             cameraHeight: mobileLike ? 360 : 480,
             handModelComplexity: mobileLike ? 0 : 1,
             handTrackingFrameIntervalMs: mobileLike ? 50 : 33,
-            enableBackgroundMusic: !mobileLike,
-            enableImpactFlashes: !mobileLike,
-            enableCameraShake: !mobileLike,
-            enableDomHitEffects: !mobileLike,
-            enableBurstEffects: !mobileLike
+            enableBackgroundMusic: true,
+            enableImpactFlashes: true,
+            enableCameraShake: true,
+            enableDomHitEffects: true,
+            enableBurstEffects: true
         };
     }
 
@@ -2065,12 +2080,16 @@
         for (let index = 0; index < steps; index += 1) {
             updateSimulation(FIXED_STEP);
         }
+        flushUiSync(true);
         if (scene) {
             scene.render();
         }
     };
 
-    window.__forceStartRound = beginCountdown;
+    window.__forceStartRound = function forceStartRound() {
+        beginCountdown();
+        flushUiSync(true);
+    };
     window.__debugAdvanceSoundtrack = advanceBackgroundMusicTrack;
     window.__perfSnapshot = () => buildPerfSnapshot();
     window.__logPerfNow = () => {
@@ -2092,6 +2111,6 @@
         if (typeof options.screenV === "number") {
             state.hand.screenV = clamp01(options.screenV);
         }
-        updateUi();
+        flushUiSync(true);
     };
 })();
