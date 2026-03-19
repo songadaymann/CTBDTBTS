@@ -1,6 +1,7 @@
 (function () {
     const MODES = {
         BOOT: "boot",
+        INTRO_TAP: "intro_tap",
         INTRO_THROW: "intro_throw",
         INTRO_HIT: "intro_hit",
         COUNTDOWN: "countdown",
@@ -218,7 +219,13 @@
         state.sceneReady = true;
 
         void loadDildoAsset();
-        void initHandTracking();
+        if (DEVICE_PROFILE.mobileLike) {
+            state.hand.trackingState = "disabled";
+            maybeEnterIntro();
+            updateUi();
+        } else {
+            void initHandTracking();
+        }
     }
 
     function bindUi() {
@@ -240,7 +247,11 @@
                 void window.primeDildoAudio();
             }
             void primeBackgroundMusicFromGesture();
-            if (state.hand.trackingState === "ready") {
+            if (DEVICE_PROFILE.mobileLike && state.mode === MODES.INTRO_TAP) {
+                beginCountdown();
+                return;
+            }
+            if (DEVICE_PROFILE.mobileLike || state.hand.trackingState === "ready") {
                 beginCountdown();
             }
         });
@@ -618,6 +629,12 @@
     }
 
     async function initHandTracking(forceRetry = false) {
+        if (DEVICE_PROFILE.mobileLike) {
+            state.hand.trackingState = "disabled";
+            maybeEnterIntro();
+            updateUi();
+            return;
+        }
         if (!forceRetry && (state.hand.trackingState === "starting" || state.hand.trackingState === "ready")) {
             return;
         }
@@ -740,6 +757,17 @@
         if (state.mode === MODES.RESULTS || state.mode === MODES.COUNTDOWN || state.mode === MODES.PLAYING) {
             return;
         }
+        if (DEVICE_PROFILE.mobileLike) {
+            if (state.assets.status === "loading") {
+                return;
+            }
+            if (state.mode === MODES.BOOT || state.mode === MODES.CAMERA_ERROR) {
+                clearProjectiles();
+                resetTargets();
+                state.mode = MODES.INTRO_TAP;
+            }
+            return;
+        }
         if (state.hand.trackingState !== "ready") {
             return;
         }
@@ -858,8 +886,13 @@
 
     function handlePointerDown(event) {
         if (!state.sceneReady) return;
-        if (!canThrowNow()) return;
         if (event.target && event.target.closest && event.target.closest("button")) return;
+        if (shouldShowRotatePrompt()) return;
+        if (DEVICE_PROFILE.mobileLike && state.mode === MODES.INTRO_TAP) {
+            beginCountdown();
+            return;
+        }
+        if (!canThrowNow()) return;
         if (state.audio.soundtrackRequested && !state.audio.soundtrackPlaying) {
             void ensureBackgroundMusicPlaying();
         }
@@ -1377,7 +1410,10 @@
             ui.instructionCopy.textContent = instructionState.copy;
         }
 
-        const showCameraPreview = state.hand.trackingState === "ready" && state.mode !== MODES.RESULTS && state.mode !== MODES.CAMERA_ERROR;
+        const showCameraPreview = !DEVICE_PROFILE.mobileLike
+            && state.hand.trackingState === "ready"
+            && state.mode !== MODES.RESULTS
+            && state.mode !== MODES.CAMERA_ERROR;
         ui.cameraPreviewShell.classList.toggle("hidden", !showCameraPreview);
 
         const countdownVisible = state.mode === MODES.COUNTDOWN;
@@ -1405,9 +1441,16 @@
         }
 
         const showResults = state.mode === MODES.RESULTS;
+        const showRotatePrompt = shouldShowRotatePrompt();
+        const showMobileIntroAction = DEVICE_PROFILE.mobileLike && state.mode === MODES.INTRO_TAP && !showRotatePrompt;
         ui.resultsGrid.classList.toggle("hidden", !showResults);
         ui.retryCameraBtn.classList.toggle("hidden", state.mode !== MODES.CAMERA_ERROR);
-        ui.playAgainBtn.classList.toggle("hidden", !showResults);
+        ui.playAgainBtn.classList.toggle("hidden", !showResults && !showMobileIntroAction);
+        if (showMobileIntroAction) {
+            ui.playAgainBtn.textContent = "Tap To Throw";
+        } else {
+            ui.playAgainBtn.textContent = "Play Again";
+        }
 
         if (showResults) {
             const sessionSummary = state.playfun.currentSessionSummary;
@@ -1439,6 +1482,9 @@
     }
 
     function currentInstructionState() {
+        if (DEVICE_PROFILE.mobileLike) {
+            return { hidden: true };
+        }
         if (state.mode === MODES.RESULTS || state.mode === MODES.CAMERA_ERROR || state.mode === MODES.COUNTDOWN || state.mode === MODES.PLAYING) {
             return { hidden: true };
         }
@@ -1497,6 +1543,24 @@
     }
 
     function currentModalState() {
+        if (shouldShowRotatePrompt()) {
+            return {
+                hidden: false,
+                eyebrow: "Rotate",
+                title: GAME_TITLE,
+                copy: "Turn your phone sideways to play."
+            };
+        }
+
+        if (DEVICE_PROFILE.mobileLike && state.mode === MODES.INTRO_TAP) {
+            return {
+                hidden: false,
+                eyebrow: "Mobile",
+                title: GAME_TITLE,
+                copy: "Tap to throw. Then you have 60 seconds to hit the true believers."
+            };
+        }
+
         if (state.mode !== MODES.RESULTS && state.mode !== MODES.CAMERA_ERROR) {
             return { hidden: true };
         }
@@ -1605,6 +1669,7 @@
         if (engine) {
             engine.resize();
         }
+        updateUi();
     }
 
     function disposeProjectile(projectile) {
@@ -1669,6 +1734,12 @@
 
     function clamp(value, min, max) {
         return Math.min(max, Math.max(min, value));
+    }
+
+    function shouldShowRotatePrompt() {
+        if (!DEVICE_PROFILE.mobileLike) return false;
+        if ([MODES.PLAYING, MODES.RESULTS, MODES.CAMERA_ERROR].includes(state.mode)) return false;
+        return window.innerHeight > window.innerWidth;
     }
 
     function detectDeviceProfile() {
@@ -1738,6 +1809,7 @@
         const aimTarget = currentAimTarget();
         const payload = {
             mode: state.mode,
+            inputMode: DEVICE_PROFILE.mobileLike ? "tap" : "camera",
             score: state.score,
             throws: state.throws,
             hits: state.hits,
