@@ -42,6 +42,7 @@
     const MAX_REALTIME_FRAME_DELTA = 0.1;
     const MAX_SIMULATION_STEPS_PER_FRAME = 5;
     const DILDO_FILE = "dildo.glb";
+    const MOBILE_BACKGROUND_PATH = "HDogQOybEAAutN2-mobile.jpg";
     const BACKGROUND_MUSIC_FILES = [
         "sounds/CTBDTBTS1.mp3",
         "sounds/CTBDTBTS2.mp3"
@@ -194,7 +195,9 @@
         state.playfun.config = { ...DEFAULT_PLAYFUN_CONFIG, ...playfunConfig };
         state.playfun.history = loadSessionHistory();
 
-        const backgroundImage = await loadImage(state.config.backgroundPath);
+        const backgroundImage = await loadImage(
+            DEVICE_PROFILE.mobileLike ? MOBILE_BACKGROUND_PATH : state.config.backgroundPath
+        );
         state.stageWidth = state.config.stageWidth;
         state.stageHeight = state.stageWidth * (backgroundImage.height / backgroundImage.width);
 
@@ -1120,9 +1123,9 @@
         shockwave.style.top = `${projected.screenY}px`;
 
         const shockwaveSize = clamp(
-            engine.getRenderHeight() * Math.max(target.width, target.height) * 1.95,
-            360,
-            760
+            engine.getRenderHeight() * Math.max(target.width, target.height) * (DEVICE_PROFILE.mobileLike ? 1.35 : 1.95),
+            DEVICE_PROFILE.mobileLike ? 220 : 360,
+            DEVICE_PROFILE.mobileLike ? 480 : 760
         );
         shockwave.style.width = `${shockwaveSize}px`;
         shockwave.style.height = `${shockwaveSize}px`;
@@ -1133,9 +1136,9 @@
         coreFlash.style.left = `${projected.screenX}px`;
         coreFlash.style.top = `${projected.screenY}px`;
         const coreSize = clamp(
-            engine.getRenderHeight() * Math.max(target.width, target.height) * 1.05,
-            200,
-            420
+            engine.getRenderHeight() * Math.max(target.width, target.height) * (DEVICE_PROFILE.mobileLike ? 0.72 : 1.05),
+            DEVICE_PROFILE.mobileLike ? 120 : 200,
+            DEVICE_PROFILE.mobileLike ? 260 : 420
         );
         coreFlash.style.width = `${coreSize}px`;
         coreFlash.style.height = `${coreSize}px`;
@@ -1161,46 +1164,57 @@
         }
         if (typeof window.playWoodHitSound === "function") {
             window.playWoodHitSound();
-            window.setTimeout(() => {
-                window.playWoodHitSound();
-            }, 34);
+            if (!DEVICE_PROFILE.mobileLike) {
+                window.setTimeout(() => {
+                    window.playWoodHitSound();
+                }, 34);
+            }
         }
         triggerImpactFlashes();
         if (typeof window.cameraShake === "function") {
-            window.cameraShake(camera, 1.02, 320);
-            window.setTimeout(() => {
-                window.cameraShake(camera, 0.68, 260);
-            }, 72);
+            if (DEVICE_PROFILE.mobileLike) {
+                window.cameraShake(camera, 0.72, 220);
+            } else {
+                window.cameraShake(camera, 1.02, 320);
+                window.setTimeout(() => {
+                    window.cameraShake(camera, 0.68, 260);
+                }, 72);
+            }
         }
         if (typeof window.createImpactBurst === "function") {
             window.createImpactBurst(
                 scene,
                 impactPosition,
-                2.55,
+                DEVICE_PROFILE.mobileLike ? 1.7 : 2.55,
                 BABYLON.Color3.FromHexString("#ff4d42")
             );
-            window.createImpactBurst(
-                scene,
-                impactPosition.add(new BABYLON.Vector3(0, 0, 0.08)),
-                1.9,
-                BABYLON.Color3.FromHexString("#fff0d1")
-            );
+            if (!DEVICE_PROFILE.mobileLike) {
+                window.createImpactBurst(
+                    scene,
+                    impactPosition.add(new BABYLON.Vector3(0, 0, 0.08)),
+                    1.9,
+                    BABYLON.Color3.FromHexString("#fff0d1")
+                );
+            }
         }
         if (typeof window.createExplosionSprite === "function") {
             window.createExplosionSprite(
                 scene,
                 impactPosition,
                 {
-                    size: 8.8,
-                    growth: 2.9,
-                    duration: 480,
-                    zOffset: 0.86
+                    size: DEVICE_PROFILE.mobileLike ? 6.2 : 8.8,
+                    growth: DEVICE_PROFILE.mobileLike ? 2.1 : 2.9,
+                    duration: DEVICE_PROFILE.mobileLike ? 320 : 480,
+                    zOffset: DEVICE_PROFILE.mobileLike ? 0.68 : 0.86
                 }
             );
         }
         triggerImpactPunch(target);
         spawnHitOverlay(target);
-        state.hitStopRemaining = Math.max(state.hitStopRemaining, HIT_STOP_DURATION);
+        state.hitStopRemaining = Math.max(
+            state.hitStopRemaining,
+            DEVICE_PROFILE.mobileLike ? HIT_STOP_DURATION * 0.65 : HIT_STOP_DURATION
+        );
 
         if (projectile.countsForRound) {
             state.score += target.points;
@@ -1609,9 +1623,9 @@
         explosion.style.top = `${projected.screenY}px`;
 
         const baseSize = clamp(
-            engine.getRenderHeight() * Math.max(target.width, target.height) * 1.3,
-            360,
-            620
+            engine.getRenderHeight() * Math.max(target.width, target.height) * (DEVICE_PROFILE.mobileLike ? 0.92 : 1.3),
+            DEVICE_PROFILE.mobileLike ? 220 : 360,
+            DEVICE_PROFILE.mobileLike ? 420 : 620
         );
         explosion.style.width = `${baseSize}px`;
         explosion.style.height = `${baseSize}px`;
@@ -1750,7 +1764,7 @@
 
         return {
             mobileLike,
-            hardwareScalingLevel: mobileLike ? Math.max(1.4, Math.min(2.2, window.devicePixelRatio || 1.6)) : 1,
+            hardwareScalingLevel: mobileLike ? Math.max(1.8, Math.min(2.8, window.devicePixelRatio || 1.6)) : 1,
             cameraWidth: mobileLike ? 480 : 640,
             cameraHeight: mobileLike ? 360 : 480,
             handModelComplexity: mobileLike ? 0 : 1,
