@@ -228,7 +228,7 @@
         }
 
         scene = createScene(backgroundImage);
-        if (typeof window.preloadExplosionFrames === "function") {
+        if (DEVICE_PROFILE.enableBurstEffects && typeof window.preloadExplosionFrames === "function") {
             window.preloadExplosionFrames(scene);
         }
         initPlayfun();
@@ -305,6 +305,8 @@
     }
 
     function initBackgroundMusic() {
+        if (!DEVICE_PROFILE.enableBackgroundMusic) return;
+
         const soundtrack = new Audio(BACKGROUND_MUSIC_FILES[0]);
         soundtrack.preload = "auto";
         soundtrack.loop = false;
@@ -1136,7 +1138,7 @@
     }
 
     function triggerImpactFlashes() {
-        if (typeof window.screenFlash !== "function") return;
+        if (!DEVICE_PROFILE.enableImpactFlashes || typeof window.screenFlash !== "function") return;
 
         window.screenFlash("#ff2b2b", 0.7, 120);
         window.setTimeout(() => {
@@ -1151,6 +1153,8 @@
     }
 
     function triggerImpactPunch(target) {
+        if (!DEVICE_PROFILE.enableDomHitEffects) return;
+
         restartClassAnimation(ui.appShell, "impact-pulse", 240);
         restartClassAnimation(ui.appShell, "impact-flash", 260);
 
@@ -1215,7 +1219,7 @@
             }
         }
         triggerImpactFlashes();
-        if (typeof window.cameraShake === "function") {
+        if (DEVICE_PROFILE.enableCameraShake && typeof window.cameraShake === "function") {
             if (DEVICE_PROFILE.mobileLike) {
                 window.cameraShake(camera, 0.72, 220);
             } else {
@@ -1225,7 +1229,7 @@
                 }, 72);
             }
         }
-        if (typeof window.createImpactBurst === "function") {
+        if (DEVICE_PROFILE.enableBurstEffects && typeof window.createImpactBurst === "function") {
             window.createImpactBurst(
                 scene,
                 impactPosition,
@@ -1241,7 +1245,7 @@
                 );
             }
         }
-        if (typeof window.createExplosionSprite === "function") {
+        if (DEVICE_PROFILE.enableBurstEffects && typeof window.createExplosionSprite === "function") {
             window.createExplosionSprite(
                 scene,
                 impactPosition,
@@ -1652,6 +1656,7 @@
     }
 
     function spawnHitOverlay(target) {
+        if (!DEVICE_PROFILE.enableDomHitEffects) return;
         if (!ui.hitEffectsLayer || !engine) return;
 
         const projected = projectTargetToScreen(target);
@@ -1921,7 +1926,12 @@
             cameraWidth: mobileLike ? 480 : 640,
             cameraHeight: mobileLike ? 360 : 480,
             handModelComplexity: mobileLike ? 0 : 1,
-            handTrackingFrameIntervalMs: mobileLike ? 50 : 33
+            handTrackingFrameIntervalMs: mobileLike ? 50 : 33,
+            enableBackgroundMusic: !mobileLike,
+            enableImpactFlashes: !mobileLike,
+            enableCameraShake: !mobileLike,
+            enableDomHitEffects: !mobileLike,
+            enableBurstEffects: !mobileLike
         };
     }
 
@@ -1998,7 +2008,9 @@
             },
             audio: {
                 currentTrackIndex: state.audio.soundtrackTrackIndex,
-                currentTrackFile: BACKGROUND_MUSIC_FILES[state.audio.soundtrackTrackIndex] || null,
+                currentTrackFile: state.audio.soundtrack
+                    ? (BACKGROUND_MUSIC_FILES[state.audio.soundtrackTrackIndex] || null)
+                    : null,
                 soundtrackRequested: state.audio.soundtrackRequested,
                 soundtrackPlaying: state.audio.soundtrackPlaying,
                 soundtrackUnlocked: state.audio.soundtrackUnlocked,
